@@ -1,0 +1,56 @@
+services:
+  mariadb:
+    image: {{ cloud1_image_mariadb }}
+    container_name: cloud1-mariadb
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - cloud1_backend
+
+  wordpress:
+    image: {{ cloud1_image_wordpress }}
+    container_name: cloud1-wordpress
+    env_file:
+      - .env
+    depends_on:
+      - mariadb
+    restart: unless-stopped
+    volumes:
+      - ./data/wordpress:/var/www/html
+    networks:
+      - cloud1_backend
+
+  phpmyadmin:
+    image: {{ cloud1_image_phpmyadmin }}
+    container_name: cloud1-phpmyadmin
+    env_file:
+      - .env
+    depends_on:
+      - mariadb
+    restart: unless-stopped
+    networks:
+      - cloud1_backend
+
+  nginx:
+    image: {{ cloud1_image_nginx }}
+    container_name: cloud1-nginx
+    depends_on:
+      - wordpress
+      - phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./data/wordpress:/var/www/html:ro
+    networks:
+      - cloud1_backend
+
+networks:
+  cloud1_backend:
+    name: cloud1_backend

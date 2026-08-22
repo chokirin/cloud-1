@@ -1,0 +1,47 @@
+---
+- name: Create deployment directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ cloud1_project_root }}"
+    - "{{ cloud1_project_root }}/data"
+    - "{{ cloud1_project_root }}/data/mysql"
+    - "{{ cloud1_project_root }}/data/wordpress"
+    - "{{ cloud1_project_root }}/nginx"
+
+- name: Render docker compose file
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ cloud1_project_root }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Render nginx virtual host configuration
+  template:
+    src: nginx.conf.j2
+    dest: "{{ cloud1_project_root }}/nginx/default.conf"
+    mode: "0644"
+
+- name: Render env file with secrets
+  template:
+    src: env.j2
+    dest: "{{ cloud1_project_root }}/.env"
+    mode: "0600"
+
+- name: Pull latest service images
+  command: docker compose pull
+  args:
+    chdir: "{{ cloud1_project_root }}"
+  register: compose_pull
+  changed_when: "'Downloaded newer image' in compose_pull.stdout"
+
+- name: Start or reconcile stack
+  command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ cloud1_project_root }}"
+  register: compose_up
+  changed_when: >-
+    'Creating' in compose_up.stdout or
+    'Recreating' in compose_up.stdout or
+    'Starting' in compose_up.stdout

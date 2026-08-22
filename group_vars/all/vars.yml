@@ -1,0 +1,23 @@
+---
+# Deployment layout
+cloud1_project_root: /opt/cloud1
+
+# Public routing
+cloud1_site_domain: _
+cloud1_enable_tls: true
+cloud1_pma_path: /phpmyadmin
+
+# Service images
+cloud1_image_nginx: nginx:1.27-alpine
+cloud1_image_mariadb: mariadb:11.4
+cloud1_image_wordpress: wordpress:6.6-php8.2-fpm
+cloud1_image_phpmyadmin: phpmyadmin:5.2
+
+# SQL / app settings
+cloud1_db_name: wordpress
+cloud1_db_user: wp_user
+
+# Required secret variables are read from vault.yml
+# - vault_cloud1_db_root_password
+# - vault_cloud1_db_password
+# - vault_cloud1_wp_admin_email

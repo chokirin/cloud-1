@@ -1,0 +1,24 @@
+---
+- name: Create TLS certificate directory
+  file:
+    path: "{{ cloud1_project_root }}/certs"
+    state: directory
+    mode: "0755"
+
+- name: Generate self-signed TLS private key
+  command: >-
+    openssl genrsa -out {{ cloud1_project_root }}/certs/selfsigned.key 4096
+  args:
+    creates: "{{ cloud1_project_root }}/certs/selfsigned.key"
+  when: cloud1_enable_tls
+
+- name: Generate self-signed TLS certificate
+  command: >-
+    openssl req -x509 -new -nodes
+    -key {{ cloud1_project_root }}/certs/selfsigned.key
+    -sha256 -days 365
+    -out {{ cloud1_project_root }}/certs/selfsigned.crt
+    -subj /C=FR/ST=IDF/L=Paris/O=42/OU=Cloud1/CN={{ cloud1_site_domain }}
+  args:
+    creates: "{{ cloud1_project_root }}/certs/selfsigned.crt"
+  when: cloud1_enable_tls

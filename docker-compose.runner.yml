@@ -1,0 +1,13 @@
+services:
+  ansible:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cloud1-ansible-runner:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - ${HOME}/.ssh:/root/.ssh:ro
+    environment:
+      - ANSIBLE_HOST_KEY_CHECKING=False
+    entrypoint: ["ansible-playbook"]
