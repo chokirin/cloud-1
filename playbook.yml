@@ -1,0 +1,8 @@
+- name: Deploy Cloud-1 WordPress Infrastructure
+  hosts: all
+  become: yes
+
+  roles:
+    - docker
+    - firewall
+    - app

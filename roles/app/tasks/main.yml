@@ -1,0 +1,116 @@
+- name: Load vault secrets
+  include_vars:
+    file: vault.yml
+
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Create nginx config directory
+  file:
+    path: "{{ app_dir }}/nginx"
+    state: directory
+    mode: '0755'
+
+- name: Create SSL directory
+  file:
+    path: "{{ app_dir }}/nginx/ssl"
+    state: directory
+    mode: '0700'
+
+- name: Generate self-signed SSL certificate
+  shell: >
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048
+    -keyout {{ app_dir }}/nginx/ssl/key.pem
+    -out {{ app_dir }}/nginx/ssl/cert.pem
+    -subj "/CN={{ domain_name }}"
+    -addext "subjectAltName=DNS:{{ domain_name }},DNS:phpmyadmin.{{ domain_name }}"
+  args:
+    creates: "{{ app_dir }}/nginx/ssl/cert.pem"
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Install certbot
+  snap:
+    name: certbot
+    classic: yes
+
+- name: Deploy nginx.conf
+  template:
+    src: nginx.conf.j2
+    dest: "{{ app_dir }}/nginx/nginx.conf"
+    mode: '0644'
+
+- name: Create certbot webroot directory
+  file:
+    path: "{{ app_dir }}/nginx/certbot-webroot/.well-known/acme-challenge"
+    state: directory
+    mode: '0755'
+
+- name: Start Docker Compose services
+  command: docker compose up -d
+  args:
+    chdir: "{{ app_dir }}"
+  changed_when: false
+
+- name: Check if domain resolves to this instance
+  shell: >
+    set -e &&
+    INSTANCE_IP=$(curl -s https://api.ipify.org) &&
+    DOMAIN_IP=$(dig +short {{ domain_name }} | tail -1) &&
+    [ "$INSTANCE_IP" = "$DOMAIN_IP" ]
+  register: domain_check
+  failed_when: false
+  changed_when: false
+
+- name: Set domain verification status
+  set_fact:
+    domain_verified: "{{ domain_check.rc == 0 }}"
+
+- name: Obtain Let's Encrypt certificate
+  command: >
+    certbot certonly --webroot
+    -w {{ app_dir }}/nginx/certbot-webroot
+    -d {{ domain_name }} -d phpmyadmin.{{ domain_name }}
+    --non-interactive --agree-tos
+    --email admin@{{ domain_name }}
+  args:
+    creates: /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem
+  when: domain_verified
+
+- name: Install Let's Encrypt certificates
+  copy:
+    src: /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem
+    dest: "{{ app_dir }}/nginx/ssl/cert.pem"
+    remote_src: yes
+    mode: '0600'
+  notify: restart nginx
+  when: domain_verified
+
+- name: Install Let's Encrypt private key
+  copy:
+    src: /etc/letsencrypt/live/{{ domain_name }}/privkey.pem
+    dest: "{{ app_dir }}/nginx/ssl/key.pem"
+    remote_src: yes
+    mode: '0600'
+  notify: restart nginx
+  when: domain_verified
+
+- name: Setup Let's Encrypt auto-renewal
+  cron:
+    name: "certbot renew"
+    minute: "30"
+    hour: "3"
+    user: root
+    job: >
+      certbot renew --quiet &&
+      cp /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem {{ app_dir }}/nginx/ssl/cert.pem &&
+      cp /etc/letsencrypt/live/{{ domain_name }}/privkey.pem {{ app_dir }}/nginx/ssl/key.pem &&
+      docker compose -f {{ app_dir }}/docker-compose.yml restart nginx
+  when: domain_verified
