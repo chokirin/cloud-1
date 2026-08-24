@@ -11,8 +11,8 @@ Instance OVH (Ubuntu 22.04)
   │
   └── Docker Compose
        ├── nginx (reverse proxy + TLS)
-       │     ├── culoud.duckdns.org      → WordPress
-       │     └── phpmyadmin.culoud...    → phpMyAdmin
+        │     ├── <domaine>.duckdns.org        → WordPress
+        │     └── phpmyadmin.<domaine>...   → phpMyAdmin
        ├── wordpress (PHP-FPM)
        ├── mysql (interne uniquement)
        └── phpmyadmin (interne uniquement)
@@ -280,16 +280,18 @@ http {
 1.  Charger les secrets vault
 2.  Créer le dossier /opt/cloud1
 3.  Créer les sous-dossiers nginx, ssl, certbot-webroot
-4.  Installer certbot (snap) → pour Let's Encrypt
-5.  Générer un certificat auto-signé → fallback si LE échoue
-6.  Déployer docker-compose.yml
-7.  Déployer nginx.conf
-8.  Démarrer les conteneurs (docker compose up -d)
-9.  Obtenir le certificat Let's Encrypt (certbot --webroot)
-10. Copier fullchain.pem → cert.pem
-11. Copier privkey.pem → key.pem
-12. Redémarrer nginx → prend le nouveau certificat
-13. Configurer le renouvellement automatique (cron)
+4.  Générer un certificat auto-signé → fallback de sécurité
+5.  Déployer docker-compose.yml
+6.  Installer certbot (snap) → pour Let's Encrypt
+7.  Déployer nginx.conf (inclut .well-known pour LE)
+8.  Créer le dossier .well-known/acme-challenge
+9.  Démarrer les conteneurs (docker compose up -d)
+10. Vérifier si le domaine pointe vers l'instance
+    ├── OUI → Obtenir le certificat Let's Encrypt (certbot --webroot)
+    │         Copier fullchain.pem et privkey.pem
+    │         Redémarrer nginx
+    │         Configurer le renouvellement automatique (cron)
+    └── NON → Garder le certificat auto-signé (pour les tests/défense)
 ```
 
 ### `roles/app/handlers/main.yml` — Actions déclenchées
@@ -302,6 +304,32 @@ http {
 ```
 
 Un **handler** est une tâche qui ne s'exécute que si elle est notifiée (`notify`). Ici, on redémarre nginx uniquement quand le certificat change, pas à chaque run.
+
+---
+
+## Déploiement sur une nouvelle machine (évaluateur)
+
+Pour déployer sur une nouvelle instance Ubuntu 22.04 :
+
+1. **Modifier l'inventaire** (`inventory/hosts.yml`) :
+   - `ansible_host` : l'IP de la nouvelle instance
+   - `ansible_ssh_private_key_file` : chemin vers la clé privée SSH
+
+2. **Modifier le domaine** (`roles/app/vars/main.yml`) :
+   - `domain_name` : le nom de domaine pointant vers l'instance (ou un domaine factice)
+
+3. **Placer la clé publique SSH** sur l'instance :
+   ```bash
+   ssh-copy-id ubuntu@<IP>
+   ```
+
+4. **Lancer le playbook** :
+   ```bash
+   ansible-playbook playbook.yml --vault-password-file .vault_pass
+   ```
+
+Si le domaine pointe vers l'instance → Let's Encrypt automatique.
+Sinon → certificat auto-signé (le site reste fonctionnel).
 
 ---
 
@@ -336,6 +364,19 @@ Le playbook est **idempotent** : le lancer 10 fois produit le même résultat qu
 - `creates:` empêche de régénérer le certificat s'il existe déjà
 - Les modules `apt`, `file`, `template` détectent si une modification est nécessaire
 - `docker compose up -d` ne recrée que ce qui a changé
+
+---
+
+## Fallback Let's Encrypt → auto-signé
+
+Le playbook détecte automatiquement si le domaine peut obtenir un certificat Let's Encrypt :
+
+1. Récupère l'IP publique de l'instance (`curl api.ipify.org`)
+2. Résout le domaine (`dig +short`)
+3. Si les IPs correspondent → Let's Encrypt (certificat reconnu)
+4. Si les IPs ne correspondent pas → certificat auto-signé (fallback)
+
+Cela permet à l'évaluateur de déployer le playbook sur **sa propre machine** même si son domaine ne pointe pas encore vers son IP. Le site fonctionnera avec un certificat auto-signé, et il pourra activer Let's Encrypt plus tard en pointant son domaine.
 
 ---
 
