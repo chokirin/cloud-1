@@ -1,66 +1,45 @@
----
-- name: Get Ubuntu codename
-  command: lsb_release -cs
-  register: ubuntu_codename
-  changed_when: false
-
-- name: Get dpkg architecture
-  command: dpkg --print-architecture
-  register: ubuntu_arch
-  changed_when: false
-
-- name: Remove conflicting Docker packages
+- name: Install prerequisites
   apt:
     name:
-      - docker
-      - docker-engine
-      - docker.io
-      - containerd
-      - runc
-      - podman-docker
-    state: absent
-    purge: false
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - software-properties-common
+    state: present
+    update_cache: yes
 
-- name: Create docker key directory
-  file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: "0755"
-
-- name: Download Docker GPG key
-  get_url:
+- name: Add Docker GPG key
+  apt_key:
     url: https://download.docker.com/linux/ubuntu/gpg
-    dest: /tmp/docker.gpg
-    mode: "0644"
-    timeout: 30
-
-- name: Install Docker GPG keyring
-  command: gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg /tmp/docker.gpg
-  args:
-    creates: /etc/apt/keyrings/docker.gpg
+    state: present
 
 - name: Add Docker repository
   apt_repository:
-    repo: >-
-      deb [arch={{ ubuntu_arch.stdout }} signed-by=/etc/apt/keyrings/docker.gpg]
-      https://download.docker.com/linux/ubuntu
-      {{ ubuntu_codename.stdout }} stable
-    filename: docker
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
     state: present
+    update_cache: yes
 
-- name: Install Docker Engine and Compose plugin
+- name: Install Docker Engine and Docker Compose plugin
   apt:
     name:
       - docker-ce
       - docker-ce-cli
       - containerd.io
-      - docker-buildx-plugin
       - docker-compose-plugin
-    update_cache: true
     state: present
 
-- name: Enable Docker service at boot
+- name: Ensure Docker is running and enabled at boot
   systemd:
     name: docker
-    enabled: true
     state: started
+    enabled: yes
+
+- name: Add ubuntu user to docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+- name: Reset SSH connection to apply docker group
+  meta: reset_connection

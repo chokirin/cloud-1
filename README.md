@@ -341,6 +341,7 @@ ansible all -m ping
 
 # Déployer
 ansible-playbook playbook.yml --vault-password-file .vault_pass
+ansible-playbook playbook.yml --ask-vault-pass
 
 # Modifier les secrets
 EDITOR=nano ansible-vault edit roles/app/vars/vault.yml --vault-password-file .vault_pass

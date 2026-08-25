@@ -1,9 +1,0 @@
-app_dir: /opt/cloud1
-
-domain_name: culoud.duckdns.org
-
-mysql_database: wordpress
-mysql_user: wp_user
-
-mysql_root_password: "{{ vault_mysql_root_password }}"
-mysql_password: "{{ vault_mysql_password }}"

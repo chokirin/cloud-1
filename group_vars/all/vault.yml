@@ -1,9 +1,0 @@
----
-# Encrypt this file with ansible-vault.
-# Example:
-# ansible-vault encrypt group_vars/all/vault.yml
-
-# Required secrets:
-# vault_cloud1_db_root_password: "change-me"
-# vault_cloud1_db_password: "change-me"
-# vault_cloud1_wp_admin_email: "you@example.com"
