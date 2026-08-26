@@ -70,13 +70,21 @@ Définit **sur quelle machine** Ansible va travailler. `become: yes` dans le pla
   hosts: all          # toutes les machines de l'inventaire
   become: yes         # exécuter en root (sudo)
 
+  vars:
+    app_dir: /opt/cloud1
+    domain_name: culoud.duckdns.org
+    mysql_database: wordpress
+    mysql_user: wp_user
+
   roles:
     - docker          # 1. Installer Docker
     - firewall        # 2. Configurer le pare-feu
-    - app             # 3. Déployer l'application
+    - ssl             # 3. Certificats TLS (auto-signé + Let's Encrypt)
+    - nginx           # 4. Configuration reverse proxy
+    - app             # 5. Déployer docker-compose.yml + lancer les conteneurs
 ```
 
-**Pourquoi cet ordre ?** Docker doit être installé avant de lancer les conteneurs. Le firewall doit être actif avant d'exposer quoi que ce soit.
+**Pourquoi cet ordre ?** Docker doit être installé avant. Le firewall avant d'exposer. Les certificats avant nginx. La config nginx avant les conteneurs qui en dépendent.
 
 ### `roles/docker/tasks/main.yml` — Installation de Docker
 
@@ -105,7 +113,32 @@ Définit **sur quelle machine** Ansible va travailler. `become: yes` dans le pla
 
 **Pourquoi le port 22 est autorisé ?** Sans SSH, vous ne pourriez plus vous connecter au serveur. Ansible en a besoin pour fonctionner.
 
-### `roles/app/vars/main.yml` — Variables
+### `roles/ssl/tasks/main.yml` — Certificats TLS
+
+```
+1.  Créer le dossier SSL
+2.  Installer certbot (Let's Encrypt)
+3.  Créer le dossier webroot pour la vérification LE
+4.  Générer un certificat auto-signé → fallback de sécurité
+5.  Vérifier si le domaine pointe vers l'instance
+    ├── OUI → Obtenir le certificat Let's Encrypt
+    │         Installer les certificats LE
+    │         Configurer le renouvellement automatique (cron)
+    └── NON → Garder le certificat auto-signé
+```
+
+### `roles/nginx/tasks/main.yml` — Reverse proxy
+
+```
+1. Créer le dossier de configuration nginx
+2. Déployer nginx.conf (routing WordPress + phpMyAdmin, TLS, redirection HTTP→HTTPS)
+```
+
+### Variables (playbook.yml)
+
+Les variables communes sont définies au niveau du playbook : `app_dir`, `domain_name`, `mysql_database`, `mysql_user`.
+
+### `roles/app/vars/vault.yml` — Secrets chiffrés
 
 ```yaml
 app_dir: /opt/cloud1                        # dossier de l'application sur le serveur
@@ -274,27 +307,17 @@ http {
 
 **Pourquoi `try_files` ?** Sans ça, les "pretty permalinks" WordPress (/mon-article) ne fonctionnent pas et renvoient une 404.
 
-### `roles/app/tasks/main.yml` — Déploiement de l'application
+### `roles/app/tasks/main.yml` — Déploiement Docker Compose
 
 ```
-1.  Charger les secrets vault
-2.  Créer le dossier /opt/cloud1
-3.  Créer les sous-dossiers nginx, ssl, certbot-webroot
-4.  Générer un certificat auto-signé → fallback de sécurité
-5.  Déployer docker-compose.yml
-6.  Installer certbot (snap) → pour Let's Encrypt
-7.  Déployer nginx.conf (inclut .well-known pour LE)
-8.  Créer le dossier .well-known/acme-challenge
-9.  Démarrer les conteneurs (docker compose up -d)
-10. Vérifier si le domaine pointe vers l'instance
-    ├── OUI → Obtenir le certificat Let's Encrypt (certbot --webroot)
-    │         Copier fullchain.pem et privkey.pem
-    │         Redémarrer nginx
-    │         Configurer le renouvellement automatique (cron)
-    └── NON → Garder le certificat auto-signé (pour les tests/défense)
+1. Charger les secrets vault
+2. Définir les variables MySQL depuis le vault
+3. Créer le dossier /opt/cloud1
+4. Déployer docker-compose.yml
+5. Démarrer les conteneurs (docker compose up -d)
 ```
 
-### `roles/app/handlers/main.yml` — Actions déclenchées
+### `roles/ssl/handlers/main.yml` — Redémarrage nginx
 
 ```yaml
 - name: restart nginx
@@ -303,7 +326,7 @@ http {
     chdir: "{{ app_dir }}"
 ```
 
-Un **handler** est une tâche qui ne s'exécute que si elle est notifiée (`notify`). Ici, on redémarre nginx uniquement quand le certificat change, pas à chaque run.
+Déclenché par `notify` quand les certificats changent.
 
 ---
 
@@ -315,7 +338,7 @@ Pour déployer sur une nouvelle instance Ubuntu 22.04 :
    - `ansible_host` : l'IP de la nouvelle instance
    - `ansible_ssh_private_key_file` : chemin vers la clé privée SSH
 
-2. **Modifier le domaine** (`roles/app/vars/main.yml`) :
+2. **Modifier le domaine** (`playbook.yml`, section `vars:`) :
    - `domain_name` : le nom de domaine pointant vers l'instance (ou un domaine factice)
 
 3. **Placer la clé publique SSH** sur l'instance :
