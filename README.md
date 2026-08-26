@@ -359,6 +359,20 @@ Sinon → certificat auto-signé (le site reste fonctionnel).
 ## Commandes utiles
 
 ```bash
+#virtual env 
+python3 -m venv ~/ansible-env
+source ~/ansible-env/bin/activate
+python -m pip install --upgrade pip
+pip install ansible
+ansible --version
+#remove the old host-key entry
+ssh-keygen -R 145.239.52.143
+#se connecter en ssh
+ssh root@145.239.52.143
+#mount disque
+ mount /dev/sdb1 /mnt
+ #copy ssh
+ echo "ssh-key" > /mnt/home/ubuntu/.ssh/authorized_keys
 # Tester la connexion SSH
 ansible all -m ping
 
@@ -372,12 +386,18 @@ EDITOR=nano ansible-vault edit roles/app/vars/vault.yml --vault-password-file .v
 # Voir l'état des conteneurs
 ansible all -m shell -a "cd /opt/cloud1 && docker compose ps"
 
+#voir les volumes en admin
+docker volume ls
+docker volume inspect cloud1_db_data
+sudo ls -lah /var/lib/docker/volumes/cloud1_wp_data/_data
+
 # Voir les logs
 ansible all -m shell -a "cd /opt/cloud1 && docker compose logs"
 
 # Vérifier le firewall
 ansible all -b -m shell -a "ufw status verbose"
 ```
+
 
 ---
 
