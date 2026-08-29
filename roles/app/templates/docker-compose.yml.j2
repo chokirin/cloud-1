@@ -1,0 +1,70 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/certbot-webroot:/var/www/certbot:ro
+      - wp_data:/var/www/html:ro
+    networks:
+      - frontend
+    restart: always
+    depends_on:
+      - wordpress
+      - phpmyadmin
+
+  wordpress:
+    image: wordpress:php8.3-fpm-alpine
+    container_name: wordpress
+    environment:
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_NAME: {{ mysql_database }}
+      WORDPRESS_DB_USER: {{ mysql_user }}
+      WORDPRESS_DB_PASSWORD: {{ mysql_password }}
+    volumes:
+      - wp_data:/var/www/html
+    networks:
+      - frontend
+      - backend
+    restart: always
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: {{ mysql_root_password }}
+      MYSQL_DATABASE: {{ mysql_database }}
+      MYSQL_USER: {{ mysql_user }}
+      MYSQL_PASSWORD: {{ mysql_password }}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - backend
+    restart: always
+
+  phpmyadmin:
+    image: phpmyadmin:apache
+    container_name: phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    networks:
+      - frontend
+      - backend
+    restart: always
+    depends_on:
+      - mysql
+
+volumes:
+  db_data:
+  wp_data:
+
+networks:
+  frontend:
+  backend:

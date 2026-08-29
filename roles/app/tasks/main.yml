@@ -1,0 +1,26 @@
+- name: Load vault secrets
+  include_vars:
+    file: vault.yml
+
+- name: Set database passwords from vault
+  set_fact:
+    mysql_root_password: "{{ vault_mysql_root_password }}"
+    mysql_password: "{{ vault_mysql_password }}"
+
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Start Docker Compose services
+  command: docker compose up -d
+  args:
+    chdir: "{{ app_dir }}"
+  changed_when: false

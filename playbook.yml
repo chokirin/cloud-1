@@ -1,0 +1,16 @@
+- name: Deploy Cloud-1 WordPress Infrastructure
+  hosts: all
+  become: yes
+
+  vars:
+    app_dir: /opt/cloud1
+    domain_name: culoud.duckdns.org
+    mysql_database: wordpress
+    mysql_user: wp_user
+
+  roles:
+    - docker
+    - firewall
+    - ssl
+    - nginx
+    - app
