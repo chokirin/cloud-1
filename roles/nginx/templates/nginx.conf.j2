@@ -1,7 +1,10 @@
 events {}
 
 http {
-        server {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    server {
         listen 80;
         server_name {{ domain_name }};
 
@@ -37,7 +40,7 @@ http {
         }
     }
 
-       server {
+    server {
         listen 80;
         server_name phpmyadmin.{{ domain_name }};
 
