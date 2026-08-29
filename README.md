@@ -1,3 +1,4 @@
+@xinzhang @msall
 # Cloud-1 — Déploiement automatisé WordPress sur OVH Cloud
 
 ## Architecture
@@ -366,7 +367,7 @@ python -m pip install --upgrade pip
 pip install ansible
 ansible --version
 #remove the old host-key entry
-ssh-keygen -R 145.239.52.143
+ssh-keygen -f ~/.ssh/known_hosts -R 145.239.52.143
 #se connecter en ssh
 ssh root@145.239.52.143
 #mount disque
@@ -396,6 +397,8 @@ ansible all -m shell -a "cd /opt/cloud1 && docker compose logs"
 
 # Vérifier le firewall
 ansible all -b -m shell -a "ufw status verbose"
+# reboot
+ansible all -m reboot -b
 ```
 
 
